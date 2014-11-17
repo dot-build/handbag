@@ -187,21 +187,35 @@
 	};
 
 	function DependencyNotFoundError(name) {
-		var e = new Error('Dependency not found: ' + name);
-		e.name = 'DependencyNotFoundError';
-		return e;
+		this.message = 'Dependency not found: ' + name;
+		this.stack = (new Error()).stack;
 	}
 
 	function DependencyAlreadyExistsError(name) {
-		var e = new Error('Cannot register, dependency already exists: ' + name);
-		e.name = 'DependencyAlreadyExistsError';
-		return e;
+		this.message = 'Cannot register, dependency already exists: ' + name;
+		this.stack = (new Error()).stack;
 	}
 
 	function CircularDependencyError(name) {
-		var e = new Error('Circular dependency found: ' + name);
-		e.name = 'CircularDependencyError';
-		return e;
+		this.message = 'Circular dependency found: ' + name;
+		this.stack = (new Error()).stack;
+	}
+
+	setupErrorPrototype(CircularDependencyError, 'CircularDependencyError');
+	setupErrorPrototype(DependencyAlreadyExistsError, 'DependencyAlreadyExistsError');
+	setupErrorPrototype(DependencyNotFoundError, 'DependencyNotFoundError');
+
+	function setupErrorPrototype(Type, name) {
+		var proto = new Error();
+		proto.constructor = Type;
+		proto.name = name;
+		proto.message = '';
+		proto.toString = errorToString;
+		Type.prototype = proto;
+	}
+
+	function errorToString() {
+		return this.name + ': ' + this.message;
 	}
 
 	var injector = new Injector();
