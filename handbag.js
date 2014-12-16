@@ -173,16 +173,6 @@
 		value: function(name, value) {
 			this.$cache[name] = value;
 			return this;
-		},
-
-		load: function(list) {
-			return {
-				from: function(path) {
-					list.forEach(function(name) {
-						require(path + name);
-					});
-				}
-			};
 		}
 	};
 
