@@ -1,16 +1,16 @@
 {
-	"name": "handbag",
-	"version": "0.0.4",
-	"main": "handbag.js",
-	"description": "Dependency Injector - Inspired on AngularJS (without the config stage!)",
-	"author": {
-		"name": "Darlan Alves",
-		"email": "me@darlanalv.es"
-	},
-	"dependencies": {
-		"is": "^0.3.0"
-	},
-	"scripts": {
-		"test": "node test.js"
-	}
+  "name": "handbag",
+  "version": "0.1.0",
+  "main": "handbag.js",
+  "description": "Dependency Injector - Inspired on AngularJS (without the config stage!)",
+  "author": {
+    "name": "Darlan Alves",
+    "email": "me@darlanalv.es"
+  },
+  "dependencies": {
+    "is": "^0.3.0"
+  },
+  "scripts": {
+    "test": "node test.js"
+  }
 }
