@@ -1,4 +1,14 @@
-(function() {
+(function(root, factory) {
+	if (typeof define === 'function' && define.amd) {
+		define([], factory);
+	} else if (typeof exports === 'object') {
+		module.exports = factory();
+	} else {
+		root.handbag = factory();
+	}
+}(this, function() {
+	'use strict';
+
 	var toString = Object.prototype.toString,
 		INSTANTIATING = {},
 		is = {
@@ -104,13 +114,14 @@
 				method = dependencies.pop();
 			} else {
 				if (!('$inject' in invokable)) {
-					dependencies = this.parse(invokable);
+					dependencies = this.parseDependencies(invokable);
 				} else {
 					dependencies = invokable.$inject;
 				}
 
 				method = invokable;
 			}
+
 			if (dependencies.length) {
 				args = this.get(dependencies, locals);
 			}
@@ -127,7 +138,7 @@
 			return fn;
 		},
 
-		parse: (function() {
+		parseDependencies: (function() {
 			var FN_ARGS = /^function\s*[^\(]*\(\s*([^\)]*)\)/m;
 
 			return function(fn) {
@@ -150,7 +161,7 @@
 			if (is.array(value)) {
 				provider = value;
 			} else if (is.function(value)) {
-				provider = this.parse(value);
+				provider = this.parseDependencies(value);
 				provider.push(value);
 			} else {
 				this.value(name, value);
@@ -176,47 +187,25 @@
 		}
 	};
 
-	function DependencyNotFoundError(name) {
-		this.message = 'Dependency not found: ' + name;
-		this.stack = (new Error()).stack;
+	function createError(name, message) {
+		function CustomError(cause) {
+			var err = new Error();
+			err.name = name;
+			err.message = message.replace('%s', cause);
+			return err;
+		}
+
+		return CustomError;
 	}
 
-	function DependencyAlreadyExistsError(name) {
-		this.message = 'Cannot register, dependency already exists: ' + name;
-		this.stack = (new Error()).stack;
-	}
-
-	function CircularDependencyError(name) {
-		this.message = 'Circular dependency found: ' + name;
-		this.stack = (new Error()).stack;
-	}
-
-	setupErrorPrototype(CircularDependencyError, 'CircularDependencyError');
-	setupErrorPrototype(DependencyAlreadyExistsError, 'DependencyAlreadyExistsError');
-	setupErrorPrototype(DependencyNotFoundError, 'DependencyNotFoundError');
-
-	function setupErrorPrototype(Type, name) {
-		var proto = new Error();
-		proto.constructor = Type;
-		proto.name = name;
-		proto.message = '';
-		proto.toString = errorToString;
-		Type.prototype = proto;
-	}
-
-	function errorToString() {
-		return this.name + ': ' + this.message;
-	}
+	var DependencyNotFoundError = createError('DependencyNotFoundError', 'Dependency not found: %s');
+	var DependencyAlreadyExistsError = createError('DependencyAlreadyExistsError', 'Cannot register, dependency already exists: %s');
+	var CircularDependencyError = createError('CircularDependencyError', 'Circular dependency found: %s');
 
 	var injector = new Injector();
 	injector.createInjector = function() {
 		return new Injector();
 	};
 
-	if (typeof module !== 'undefined' && typeof module.exports === 'object') {
-		module.exports = injector;
-	} else {
-		window.handbag = injector;
-	}
-
-})();
+	return injector;
+}));
