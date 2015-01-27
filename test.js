@@ -1,3 +1,6 @@
+/**
+ * @todo  make some real tests, this is lame, even for a weekend hack
+ */
 var handbag = require('./handbag'),
 	isOK = true,
 	error1, error2;

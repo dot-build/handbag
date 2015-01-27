@@ -11,6 +11,7 @@
 
 	var toString = Object.prototype.toString,
 		INSTANTIATING = {},
+
 		is = {
 			array: function(value) {
 				return '[object Array]' === toString.call(value);
@@ -21,15 +22,12 @@
 			},
 
 			object: function(value) {
-				return typeof value === 'object';
+				return value !== null && typeof value === 'object';
 			}
 		};
 
 	function Injector() {
-		this.$cache = {};
-		this.$providers = {};
-		this.$privates = {};
-		this.$stack = [];
+		this.reset();
 	}
 
 	Injector.prototype = {
@@ -156,6 +154,10 @@
 		}()),
 
 		provide: function(name, value, isPrivate) {
+			if (this.$frozen) {
+				throw new InjectorIsFrozenError();
+			}
+
 			var provider;
 
 			if (is.array(value)) {
@@ -182,8 +184,27 @@
 		},
 
 		value: function(name, value) {
+			if (this.$frozen) {
+				throw new InjectorIsFrozenError();
+			}
+
 			this.$cache[name] = value;
 			return this;
+		},
+
+		freeze: function() {
+			this.$frozen = true;
+		},
+
+		reset: function() {
+			if (this.$frozen) {
+				throw new InjectorIsFrozenError();
+			}
+
+			this.$cache = {};
+			this.$providers = {};
+			this.$privates = {};
+			this.$stack = [];
 		}
 	};
 
@@ -201,6 +222,7 @@
 	var DependencyNotFoundError = createError('DependencyNotFoundError', 'Dependency not found: %s');
 	var DependencyAlreadyExistsError = createError('DependencyAlreadyExistsError', 'Cannot register, dependency already exists: %s');
 	var CircularDependencyError = createError('CircularDependencyError', 'Circular dependency found: %s');
+	var InjectorIsFrozenError = createError('InjectorIsFrozenError', 'This injector is frozen and cannot be modified');
 
 	var injector = new Injector();
 	injector.createInjector = function() {
