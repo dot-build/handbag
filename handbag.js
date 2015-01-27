@@ -88,7 +88,7 @@
 		},
 
 		has: function(name) {
-			return this.$providers.hasOwnProperty(name);
+			return this.$providers.hasOwnProperty(name) || this.$cache.hasOwnProperty(name);
 		},
 
 		instantiate: function(Type, locals) {
