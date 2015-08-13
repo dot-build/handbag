@@ -209,14 +209,14 @@
 	};
 
 	function createError(name, message) {
-		function CustomError(cause) {
+		function Error(cause) {
 			var err = new Error();
 			err.name = name;
 			err.message = message.replace('%s', cause);
 			return err;
 		}
 
-		return CustomError;
+		return Error;
 	}
 
 	var DependencyNotFoundError = createError('DependencyNotFoundError', 'Dependency not found: %s');

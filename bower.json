@@ -1,0 +1,24 @@
+{
+  "name": "handbag",
+  "main": "handbag.js",
+  "version": "0.1.1",
+  "homepage": "https://github.com/darlanalves/handbag",
+  "authors": [
+    "Darlan Alves <me@darlanalv.es>"
+  ],
+  "description": "A small dependency injector, heavily inspired on AngularJS",
+  "keywords": [
+    "injector",
+    "angular",
+    "dependency",
+    "di"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
