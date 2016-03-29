@@ -13,4 +13,8 @@ watch:
 bundle:
 	BUNDLE=1 ./node_modules/.bin/gulp build
 
-.PHONY: test tdd build watch bundle
+docs:
+	rm -rf docs;\
+	./node_modules/.bin/esdoc -c esdoc.json;
+
+.PHONY: test tdd build watch bundle docs
