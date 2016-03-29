@@ -1,23 +1,42 @@
 # handbag
 
-Dependency Injector - Inspired on AngularJS (without the config stage)
+A simple Dependency Injection container written in ES6.
 
-This is just an experiment to understand how dependency injection was
-made for AngularJS framework
+Some ideas taken from AngularJS' `$injector` service
 
-Code explains it better
+## Usage
 
-```javascript
-var handbag = require('handbag');
+```js
 
-handbag.provide('Bar', ['FOO', 'handbag', function(FOO, hb) {
-	// always true
-	console.log(hb.get('handbag') === hb, FOO);
-}]);
+// FooService.js
 
-handbag.value('FOO', 'foo');
+import di from 'handbag';
 
-// true, "foo"
-handbag.get('Bar');
+class FooService {
+    constructor(FOO) {
+        this.foo = FOO;
+    }
+}
+
+di.constant('FOO', 123);
+di.provide('FooService', ['FOO', FooService]);
+
+
+// FooController.js
+
+class FooController {
+    constructor(FooService) {
+        this.service = FooService;
+    }
+}
+
+di.provide('FooController', FooController);
+
+
+// app.js
+
+// instantiates FooController injecting the service on constructor
+const ctrl = di.get('FooController');
+const service = di.get('FooService');
 
 ```
