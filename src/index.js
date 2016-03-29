@@ -31,6 +31,10 @@ class Injector {
      * @param {Object} [locals={}]     Map of injectables to override
      */
     get(name, locals = {}) {
+        if (!name) {
+            throw new Error('Dependency name is required');
+        }
+
         if (is.array(name)) {
             return name.map(function(item) {
                 return this.get(item, locals);
