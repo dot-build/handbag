@@ -29,6 +29,17 @@ describe('handbag', function() {
             expect(injector.has('FOO')).toBe(true);
             expect(injector.get('FOO')).toBe(1);
         });
+
+        it('should register several constants from an object', function () {
+            const FOO = 1;
+            const BAR = 2;
+
+            let constants = { FOO, BAR };
+            injector.constant(constants);
+
+            expect(injector.has('FOO')).toBe(true);
+            expect(injector.has('BAR')).toBe(true);
+        });
     });
 
     describe('#provide(name, Type, isShared = true)', function() {
@@ -87,6 +98,18 @@ describe('handbag', function() {
             }
 
             expect(test).toThrow(new Error('Cannot register a dependency that already exists: Foo'));
+        });
+
+        it('should register several items from an object', function () {
+            function Foo() {}
+            function Bar() {}
+
+            let providers = { Foo, Bar };
+
+            injector.provide(providers);
+
+            expect(injector.has('Foo')).toBe(true);
+            expect(injector.has('Bar')).toBe(true);
         });
     });
 

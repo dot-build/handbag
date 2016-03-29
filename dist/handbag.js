@@ -35,16 +35,6 @@
       };
     }();
 
-    babelHelpers.toConsumableArray = function (arr) {
-      if (Array.isArray(arr)) {
-        for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) arr2[i] = arr[i];
-
-        return arr2;
-      } else {
-        return Array.from(arr);
-      }
-    };
-
     babelHelpers;
 
     var toString = Object.prototype.toString;
@@ -79,8 +69,8 @@
         }
 
         /**
-         * @param {string} name
-         * @param {Object} [locals]     Map of injectables to override
+         * @param {string|Symbol} name
+         * @param {Object} [locals={}]     Map of injectables to override
          */
 
 
@@ -88,6 +78,10 @@
             key: 'get',
             value: function get(name) {
                 var locals = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
+
+                if (!name) {
+                    throw new Error('Dependency name is required');
+                }
 
                 if (is.array(name)) {
                     return name.map(function (item) {
@@ -120,7 +114,7 @@
             }
 
             /**
-             * @param {string} name
+             * @param {string|Symbol} name
              * @param {Object} [locals]     Map of injectables to override
              */
 
@@ -139,7 +133,7 @@
 
             /**
              * Get a value from cache or instantiate a value from registered provider
-             * @param {string} name
+             * @param {string|Symbol} name
              * @param {Object} [locals]     Map of injectables to override
              * @private
              */
@@ -185,8 +179,6 @@
                     cache.delete(name);
                 }
 
-                console.log(name, value);
-
                 return value;
             }
         }, {
@@ -197,7 +189,7 @@
 
             /**
              * Check for a provider in this injector and all children
-             * @param {string} name
+             * @param {string|Symbol} name
              * @return {boolean}
              */
 
@@ -209,7 +201,7 @@
 
             /**
              * Check for a provider only in this instance (not checking on children)
-             * @param {string} name
+             * @param {string|Symbol} name
              * @return {boolean}
              */
 
@@ -222,7 +214,7 @@
 
             /**
              * Check for a provider in all children injectors
-             * @param {string} name
+             * @param {string|Symbol} name
              * @return {boolean}
              */
 
@@ -237,7 +229,7 @@
 
             /**
              * Register a provider for a value meant to be a singleton instance
-             * @param {string} name
+             * @param {string|Symbol} name
              * @param {Function|Class} value
              */
 
@@ -249,7 +241,7 @@
 
             /**
              * Register a provider for a value meant to be recreated everytime it is required
-             * @param {string} name
+             * @param {string|Symbol} name
              * @param {Function|Class} value
              */
 
@@ -261,7 +253,7 @@
 
             /**
              * Register a provider for a value
-             * @param {string} name
+             * @param {string|Symbol} name
              * @param {Function|Class} value
              * @param {boolean} isShared
              */
@@ -269,7 +261,16 @@
         }, {
             key: 'provide',
             value: function provide(name, value) {
+                var _this = this;
+
                 var isShared = arguments.length <= 2 || arguments[2] === undefined ? true : arguments[2];
+
+                if (is.object(name)) {
+                    Object.keys(name).forEach(function (k) {
+                        return _this.provide(k, name[k], isShared);
+                    });
+                    return;
+                }
 
                 if (this.$frozen) {
                     throw new Error(INJECTOR_FROZEN_ERROR);
@@ -300,13 +301,22 @@
 
             /**
              * Provider to any value that won't change during the injector lifecycle
-             * @param {string} name
+             * @param {string|Symbol} name
              * @param {*} value
              */
 
         }, {
             key: 'constant',
             value: function constant(name, value) {
+                var _this2 = this;
+
+                if (is.object(name)) {
+                    Object.keys(name).forEach(function (k) {
+                        return _this2.constant(k, name[k]);
+                    });
+                    return;
+                }
+
                 if (this.$frozen) {
                     throw new Error(INJECTOR_FROZEN_ERROR);
                 }

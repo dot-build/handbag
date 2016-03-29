@@ -123,8 +123,6 @@ class Injector {
             cache.delete(name);
         }
 
-        console.log(name, value);
-
         return value;
     }
 
@@ -186,6 +184,11 @@ class Injector {
      * @param {boolean} isShared
      */
     provide(name, value, isShared = true) {
+        if (is.object(name)) {
+            Object.keys(name).forEach(k => this.provide(k, name[k], isShared));
+            return;
+        }
+
         if (this.$frozen) {
             throw new Error(INJECTOR_FROZEN_ERROR);
         }
@@ -219,6 +222,11 @@ class Injector {
      * @param {*} value
      */
     constant(name, value) {
+        if (is.object(name)) {
+            Object.keys(name).forEach(k => this.constant(k, name[k]));
+            return;
+        }
+
         if (this.$frozen) {
             throw new Error(INJECTOR_FROZEN_ERROR);
         }
