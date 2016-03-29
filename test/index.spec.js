@@ -3,7 +3,7 @@ describe('handbag', function() {
     let injector;
 
     beforeEach(function () {
-        injector = handbag.create();
+        injector = handbag.createInjector();
     });
 
     describe('#constructor()', function() {
@@ -278,6 +278,26 @@ describe('handbag', function() {
             }
 
             expect(test).toThrow();
+        });
+    });
+
+    describe('#addInjector(injector)', function() {
+        it('should allow to add a child injector in an instance and pull values from it', function () {
+            const foo = handbag.createInjector();
+            const bar = handbag.createInjector();
+
+            function Bar() {}
+            bar.constant('BAR', 123);
+            bar.provide('BarService', Bar);
+
+            foo.addInjector(bar);
+
+            let BAR = foo.get('BAR');
+            let BarService = foo.get('BarService');
+
+            // pulled from bar though foo injector
+            expect(BAR).toBe(123);
+            expect(BarService instanceof Bar).toBe(true);
         });
     });
 });

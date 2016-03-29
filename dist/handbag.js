@@ -35,6 +35,16 @@
       };
     }();
 
+    babelHelpers.toConsumableArray = function (arr) {
+      if (Array.isArray(arr)) {
+        for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) arr2[i] = arr[i];
+
+        return arr2;
+      } else {
+        return Array.from(arr);
+      }
+    };
+
     babelHelpers;
 
     var toString = Object.prototype.toString;
@@ -76,7 +86,9 @@
 
         babelHelpers.createClass(Injector, [{
             key: 'get',
-            value: function get(name, locals) {
+            value: function get(name) {
+                var locals = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
+
                 if (is.array(name)) {
                     return name.map(function (item) {
                         return this.get(item, locals);
@@ -87,55 +99,77 @@
                     return this;
                 }
 
-                if (locals && locals.hasOwnProperty(name)) {
+                var isInLocals = locals.hasOwnProperty(name);
+                if (!isInLocals && typeof locals.getOwnPropertySymbols === 'function') {
+                    isInLocals = locals.getOwnPropertySymbols().indexOf(name) !== -1;
+                }
+
+                if (isInLocals) {
                     return locals[name];
                 }
 
-                var cache = this.$cache;
+                var stack = this.$stack;
 
-                if (cache.hasOwnProperty(name) && cache[name] !== INSTANTIATING) {
-                    return cache[name];
+                if (!this.has(name)) {
+                    var error = 'Dependency not found: ' + name + (stack.length ? ' (' + stack.join(' <- ') + ')' : '');
+
+                    throw new Error(error);
                 }
 
-                var resource = this._getOrCreate(name, locals);
-
-                if (true === this.$privates[name]) {
-                    delete cache[name];
-                }
-
-                // stack.pop();
-                return resource;
+                return this._getResource(name, locals);
             }
 
             /**
+             * @param {string} name
+             * @param {Object} [locals]     Map of injectables to override
+             */
+
+        }, {
+            key: '_getResource',
+            value: function _getResource(name, locals) {
+                if (this.hasLocalProvider(name)) {
+                    return this.getOrCreate(name, locals);
+                }
+
+                var injector = this.$children.find(function (i) {
+                    return i.hasLocalProvider(name);
+                });
+                return injector.getOrCreate(name, locals);
+            }
+
+            /**
+             * Get a value from cache or instantiate a value from registered provider
+             * @param {string} name
+             * @param {Object} [locals]     Map of injectables to override
              * @private
              */
 
         }, {
-            key: '_getOrCreate',
-            value: function _getOrCreate(name, locals) {
+            key: 'getOrCreate',
+            value: function getOrCreate(name, locals) {
                 var cache = this.$cache;
                 var stack = this.$stack;
                 var providers = this.$providers;
 
-                var error = void 0;
+                if (cache.has(name) && !this._isInstantiating(name)) {
+                    return cache.get(name);
+                }
 
+                var error = void 0,
+                    value = void 0;
                 stack.push(name);
 
                 try {
-                    if (!providers.hasOwnProperty(name)) {
-                        throw new Error('Dependency not found: ' + stack.join(' <- '));
-                    }
-
-                    if (cache[name] === INSTANTIATING) {
+                    if (this._isInstantiating(name)) {
                         throw new Error('Circular dependency found: ' + stack.join(' <- '));
                     }
 
-                    cache[name] = INSTANTIATING;
-                    cache[name] = this.instantiate(providers[name], locals);
+                    cache.set(name, INSTANTIATING);
+                    value = this.instantiate(providers.get(name), locals);
+                    cache.set(name, value);
                 } catch (e) {
-                    if (cache[name] === INSTANTIATING) {
-                        delete cache[name];
+                    if (this._isInstantiating(name)) {
+                        cache.delete(name);
                     }
 
                     error = e;
@@ -147,10 +181,22 @@
                     throw error;
                 }
 
-                return cache[name];
+                if (true === this.$privates[name]) {
+                    cache.delete(name);
+                }
+
+                console.log(name, value);
+
+                return value;
+            }
+        }, {
+            key: '_isInstantiating',
+            value: function _isInstantiating(name) {
+                return this.$cache.get(name) === INSTANTIATING;
             }
 
             /**
+             * Check for a provider in this injector and all children
              * @param {string} name
              * @return {boolean}
              */
@@ -158,7 +204,35 @@
         }, {
             key: 'has',
             value: function has(name) {
-                return this.$cache.hasOwnProperty(name) || this.$providers.hasOwnProperty(name);
+                return this.hasLocalProvider(name) || this.hasChildProvider(name);
+            }
+
+            /**
+             * Check for a provider only in this instance (not checking on children)
+             * @param {string} name
+             * @return {boolean}
+             */
+
+        }, {
+            key: 'hasLocalProvider',
+            value: function hasLocalProvider(name) {
+                var v = this.$cache.has(name) || this.$providers.has(name);
+                return v;
+            }
+
+            /**
+             * Check for a provider in all children injectors
+             * @param {string} name
+             * @return {boolean}
+             */
+
+        }, {
+            key: 'hasChildProvider',
+            value: function hasChildProvider(name) {
+                var v = Boolean(this.$children.find(function (i) {
+                    return i.hasLocalProvider(name);
+                }));
+                return v;
             }
 
             /**
@@ -209,15 +283,14 @@
                     }
 
                     this._register(name, value, isShared);
-
                     return this;
                 }
 
                 if (is.function(value)) {
                     var _provider = this._parseDependencies(value);
                     _provider.push(value);
-                    this._register(name, _provider, isShared);
 
+                    this._register(name, _provider, isShared);
                     return this;
                 }
 
@@ -238,7 +311,7 @@
                     throw new Error(INJECTOR_FROZEN_ERROR);
                 }
 
-                this.$cache[name] = value;
+                this.$cache.set(name, value);
                 return this;
             }
 
@@ -344,11 +417,12 @@
         }, {
             key: '_register',
             value: function _register(name, provider, isShared) {
-                if (this.$providers.hasOwnProperty(name)) {
+                if (this.$providers.has(name)) {
                     throw new Error('Cannot register a dependency that already exists: ' + name);
                 }
 
-                this.$providers[name] = this._annotateConstructor.apply(null, provider);
+                var value = this._annotateConstructor.apply(null, provider);
+                this.$providers.set(name, value);
 
                 if (!isShared) {
                     this.$privates[name] = true;
@@ -373,10 +447,21 @@
         }, {
             key: '_reset',
             value: function _reset() {
-                this.$cache = {};
-                this.$providers = {};
+                this.$cache = new Map();
+                this.$providers = new Map();
                 this.$privates = {};
                 this.$stack = [];
+                this.$children = [];
+            }
+
+            /**
+             * @param {Injector} injector
+             */
+
+        }, {
+            key: 'addInjector',
+            value: function addInjector(injector) {
+                this.$children.push(injector);
             }
 
             /**
@@ -384,8 +469,8 @@
              */
 
         }], [{
-            key: 'create',
-            value: function create() {
+            key: 'createInjector',
+            value: function createInjector() {
                 return new Injector();
             }
         }]);

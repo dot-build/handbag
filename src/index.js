@@ -27,10 +27,10 @@ class Injector {
     }
 
     /**
-     * @param {string} name
-     * @param {Object} [locals]     Map of injectables to override
+     * @param {string|Symbol} name
+     * @param {Object} [locals={}]     Map of injectables to override
      */
-    get(name, locals) {
+    get(name, locals = {}) {
         if (is.array(name)) {
             return name.map(function(item) {
                 return this.get(item, locals);
@@ -41,52 +41,69 @@ class Injector {
             return this;
         }
 
-        if (locals && locals.hasOwnProperty(name)) {
+        let isInLocals = locals.hasOwnProperty(name);
+        if (!isInLocals && typeof locals.getOwnPropertySymbols === 'function') {
+            isInLocals = locals.getOwnPropertySymbols().indexOf(name) !== -1;
+        }
+
+        if (isInLocals) {
             return locals[name];
         }
 
-        const cache = this.$cache;
+        const stack = this.$stack;
 
-        if (cache.hasOwnProperty(name) && cache[name] !== INSTANTIATING) {
-            return cache[name];
+        if (!this.has(name)) {
+            let error = 'Dependency not found: ' + name +
+                (stack.length ? ' (' + stack.join(' <- ') + ')' : '');
+
+            throw new Error(error);
         }
 
-        const resource = this._getOrCreate(name, locals);
-
-        if (true === this.$privates[name]) {
-            delete cache[name];
-        }
-
-        // stack.pop();
-        return resource;
+        return this._getResource(name, locals);
     }
 
     /**
+     * @param {string|Symbol} name
+     * @param {Object} [locals]     Map of injectables to override
+     */
+    _getResource(name, locals) {
+        if (this.hasLocalProvider(name)) {
+            return this.getOrCreate(name, locals);
+        }
+
+        const injector = this.$children.find(i => i.hasLocalProvider(name));
+        return injector.getOrCreate(name, locals);
+    }
+
+    /**
+     * Get a value from cache or instantiate a value from registered provider
+     * @param {string|Symbol} name
+     * @param {Object} [locals]     Map of injectables to override
      * @private
      */
-    _getOrCreate(name, locals) {
+    getOrCreate(name, locals) {
         const cache = this.$cache;
         const stack = this.$stack;
         const providers = this.$providers;
 
-        let error;
+        if (cache.has(name) && !this._isInstantiating(name)) {
+            return cache.get(name);
+        }
 
+        let error, value;
         stack.push(name);
 
         try {
-            if (!providers.hasOwnProperty(name)) {
-                throw new Error('Dependency not found: ' + stack.join(' <- '));
-            }
-
-            if (cache[name] === INSTANTIATING) {
+            if (this._isInstantiating(name)) {
                 throw new Error('Circular dependency found: ' + stack.join(' <- '));
             }
 
-            cache[name] = INSTANTIATING;
-            cache[name] = this.instantiate(providers[name], locals);
+            cache.set(name, INSTANTIATING);
+            value = this.instantiate(providers.get(name), locals);
+            cache.set(name, value);
         } catch (e) {
-            if (cache[name] === INSTANTIATING) {
-                delete cache[name];
+            if (this._isInstantiating(name)) {
+                cache.delete(name);
             }
 
             error = e;
@@ -98,20 +115,51 @@ class Injector {
             throw error;
         }
 
-        return cache[name];
+        if (true === this.$privates[name]) {
+            cache.delete(name);
+        }
+
+        console.log(name, value);
+
+        return value;
+    }
+
+    _isInstantiating(name) {
+        return this.$cache.get(name) === INSTANTIATING;
     }
 
     /**
-     * @param {string} name
+     * Check for a provider in this injector and all children
+     * @param {string|Symbol} name
      * @return {boolean}
      */
     has(name) {
-        return this.$cache.hasOwnProperty(name) || this.$providers.hasOwnProperty(name);
+        return this.hasLocalProvider(name) || this.hasChildProvider(name);
+    }
+
+    /**
+     * Check for a provider only in this instance (not checking on children)
+     * @param {string|Symbol} name
+     * @return {boolean}
+     */
+    hasLocalProvider(name) {
+        let v = this.$cache.has(name) || this.$providers.has(name);
+        return v;
+    }
+
+    /**
+     * Check for a provider in all children injectors
+     * @param {string|Symbol} name
+     * @return {boolean}
+     */
+    hasChildProvider(name) {
+        var v= Boolean(this.$children.find(i => i.hasLocalProvider(name)));
+        return v;
     }
 
     /**
      * Register a provider for a value meant to be a singleton instance
-     * @param {string} name
+     * @param {string|Symbol} name
      * @param {Function|Class} value
      */
     provideShared(name, value) {
@@ -120,7 +168,7 @@ class Injector {
 
     /**
      * Register a provider for a value meant to be recreated everytime it is required
-     * @param {string} name
+     * @param {string|Symbol} name
      * @param {Function|Class} value
      */
     provideNotShared(name, value) {
@@ -129,7 +177,7 @@ class Injector {
 
     /**
      * Register a provider for a value
-     * @param {string} name
+     * @param {string|Symbol} name
      * @param {Function|Class} value
      * @param {boolean} isShared
      */
@@ -146,15 +194,14 @@ class Injector {
             }
 
             this._register(name, value, isShared);
-
             return this;
         }
 
         if (is.function(value)) {
             let provider = this._parseDependencies(value);
             provider.push(value);
-            this._register(name, provider, isShared);
 
+            this._register(name, provider, isShared);
             return this;
         }
 
@@ -164,7 +211,7 @@ class Injector {
 
     /**
      * Provider to any value that won't change during the injector lifecycle
-     * @param {string} name
+     * @param {string|Symbol} name
      * @param {*} value
      */
     constant(name, value) {
@@ -172,7 +219,7 @@ class Injector {
             throw new Error(INJECTOR_FROZEN_ERROR);
         }
 
-        this.$cache[name] = value;
+        this.$cache.set(name, value);
         return this;
     }
 
@@ -264,11 +311,12 @@ class Injector {
     }
 
     _register(name, provider, isShared) {
-        if (this.$providers.hasOwnProperty(name)) {
+        if (this.$providers.has(name)) {
             throw new Error('Cannot register a dependency that already exists: ' + name);
         }
 
-        this.$providers[name] = this._annotateConstructor.apply(null, provider);
+        const value = this._annotateConstructor.apply(null, provider);
+        this.$providers.set(name, value);
 
         if (!isShared) {
             this.$privates[name] = true;
@@ -287,16 +335,24 @@ class Injector {
      * @private
      */
     _reset() {
-        this.$cache = {};
-        this.$providers = {};
+        this.$cache = new Map();
+        this.$providers = new Map();
         this.$privates = {};
         this.$stack = [];
+        this.$children = [];
+    }
+
+    /**
+     * @param {Injector} injector
+     */
+    addInjector(injector) {
+        this.$children.push(injector);
     }
 
     /**
      * @return {Injector}
      */
-    static create() {
+    static createInjector() {
         return new Injector();
     }
 }
