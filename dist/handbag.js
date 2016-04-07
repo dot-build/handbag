@@ -56,7 +56,7 @@
     };
 
     var FN_ARGS = /^function\s*[^\(]*\(\s*([^\)]*)\)/m;
-
+    var UID = 1;
     /**
      * Dependency Injection container
      */
@@ -66,6 +66,7 @@
             babelHelpers.classCallCheck(this, Injector);
 
             this._reset();
+            this.id = UID++;
         }
 
         /**
@@ -110,7 +111,7 @@
                     throw new Error(error);
                 }
 
-                return this._getResource(name, locals);
+                return this.getResource(name, locals);
             }
 
             /**
@@ -119,16 +120,16 @@
              */
 
         }, {
-            key: '_getResource',
-            value: function _getResource(name, locals) {
+            key: 'getResource',
+            value: function getResource(name, locals) {
                 if (this.hasLocalProvider(name)) {
-                    return this.getOrCreate(name, locals);
+                    return this.getLocalResource(name, locals);
                 }
 
                 var injector = this.$children.find(function (i) {
-                    return i.hasLocalProvider(name);
+                    return i.has(name);
                 });
-                return injector.getOrCreate(name, locals);
+                return injector.getResource(name, locals);
             }
 
             /**
@@ -139,11 +140,10 @@
              */
 
         }, {
-            key: 'getOrCreate',
-            value: function getOrCreate(name, locals) {
+            key: 'getLocalResource',
+            value: function getLocalResource(name, locals) {
                 var cache = this.$cache;
                 var stack = this.$stack;
-                var providers = this.$providers;
 
                 if (cache.has(name) && !this._isInstantiating(name)) {
                     return cache.get(name);
@@ -159,7 +159,12 @@
                     }
 
                     cache.set(name, INSTANTIATING);
-                    value = this.instantiate(providers.get(name), locals);
+                    value = this.instantiate(name, locals);
+
+                    if (value === undefined) {
+                        throw new Error('Invalid value returned on constructor of ' + name);
+                    }
+
                     cache.set(name, value);
                 } catch (e) {
                     if (this._isInstantiating(name)) {
@@ -208,8 +213,7 @@
         }, {
             key: 'hasLocalProvider',
             value: function hasLocalProvider(name) {
-                var v = this.$cache.has(name) || this.$providers.has(name);
-                return v;
+                return this.$cache.has(name) || this.$providers.has(name);
             }
 
             /**
@@ -221,10 +225,9 @@
         }, {
             key: 'hasChildProvider',
             value: function hasChildProvider(name) {
-                var v = Boolean(this.$children.find(function (i) {
-                    return i.hasLocalProvider(name);
+                return Boolean(this.$children.find(function (i) {
+                    return i.has(name);
                 }));
-                return v;
             }
 
             /**
@@ -326,16 +329,20 @@
             }
 
             /**
-             * @param {Function} Type
+             * @param {string} name
              * @param {Object} [locals]
              */
 
         }, {
             key: 'instantiate',
-            value: function instantiate(Type, locals) {
-                var Constructor = function Constructor() {},
-                    instance,
-                    returnedValue;
+            value: function instantiate(name, locals) {
+                function Constructor() {}
+
+                var instance = void 0,
+                    returnedValue = void 0;
+                var Type = this.$providers.get(name);
+
+                if (!Type) return;
 
                 Constructor.prototype = (is.array(Type) ? Type[Type.length - 1] : Type).prototype;
 

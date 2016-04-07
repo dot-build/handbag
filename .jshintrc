@@ -2,5 +2,6 @@
 	"strict": false,
 	"node": true,
 	"undef": true,
-	"jasmine": true
+	"jasmine": true,
+    "esversion": 6
 }

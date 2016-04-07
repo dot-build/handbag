@@ -176,7 +176,7 @@ describe('handbag', function() {
 
     describe('#get(name, locals)', function() {
         it('should return a configured and instantiated dependency from container', function () {
-            var BAR = 2;
+            const BAR = 2;
             function Foo(BAR) {
                 this.bar = BAR;
             }
@@ -242,9 +242,9 @@ describe('handbag', function() {
         });
     });
 
-    describe('#instantiate(Type, locals)', function() {
-        it('should instantiate a Type constructor', function () {
-            var FOO = 'foo';
+    describe('#instantiate(name, locals)', function() {
+        it('should instantiate a constructor by name', function () {
+            const FOO = 'foo';
 
             function User(FOO, data) {
                 this.foo = FOO;
@@ -254,8 +254,10 @@ describe('handbag', function() {
             injector.provide('User', User, true);
             injector.constant('FOO', FOO);
 
-            let data = { id: 1 };
-            let user = injector.instantiate(User, { data });
+            const data = { id: 1 };
+            const locals = { data };
+
+            let user = injector.instantiate('User', locals);
 
             expect(user instanceof User).toBe(true);
             expect(user.foo).toBe(FOO);
@@ -263,18 +265,19 @@ describe('handbag', function() {
         });
 
         it('should instantiate a Type constructor with array notation', function () {
-            var FOO = 'foo';
+            const FOO = 'foo';
 
             function User(FOO, data) {
                 this.foo = FOO;
                 this.data = data;
             }
 
-            injector.provide('User', User, true);
+            injector.provide('User', ['FOO', 'data', User], true);
             injector.constant('FOO', FOO);
 
-            let data = { id: 1 };
-            let user = injector.instantiate(['FOO', 'data', User], { data });
+            const data = { id: 1 };
+            const locals  = { data };
+            let user = injector.instantiate('User', locals);
 
             expect(user instanceof User).toBe(true);
             expect(user.foo).toBe(FOO);
@@ -306,21 +309,27 @@ describe('handbag', function() {
 
     describe('#addInjector(injector)', function() {
         it('should allow to add a child injector in an instance and pull values from it', function () {
-            const foo = handbag.createInjector();
-            const bar = handbag.createInjector();
+            const parent = handbag.createInjector();
+            const levelOne = handbag.createInjector();
+            const levelTwo = handbag.createInjector();
 
-            function Bar() {}
-            bar.constant('BAR', 123);
-            bar.provide('BarService', Bar);
+            const FOO = 123;
 
-            foo.addInjector(bar);
+            function BarService(FOO) {
+                this.foo = FOO;
+            }
 
-            let BAR = foo.get('BAR');
-            let BarService = foo.get('BarService');
+            levelOne.provide('BarService', BarService);
+            levelTwo.constant('FOO', FOO);
 
-            // pulled from bar though foo injector
-            expect(BAR).toBe(123);
-            expect(BarService instanceof Bar).toBe(true);
+            levelOne.addInjector(levelTwo);
+            parent.addInjector(levelOne);
+
+            let foo = parent.get('FOO');
+            let barService = parent.get('BarService');
+
+            expect(foo).toBe(123);
+            expect(barService.foo).toBe(FOO);
         });
     });
 });

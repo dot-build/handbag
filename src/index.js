@@ -17,13 +17,14 @@ const is = {
 };
 
 const FN_ARGS = /^function\s*[^\(]*\(\s*([^\)]*)\)/m;
-
+let UID = 1;
 /**
  * Dependency Injection container
  */
 class Injector {
     constructor() {
         this._reset();
+        this.id = UID++;
     }
 
     /**
@@ -63,20 +64,20 @@ class Injector {
             throw new Error(error);
         }
 
-        return this._getResource(name, locals);
+        return this.getResource(name, locals);
     }
 
     /**
      * @param {string|Symbol} name
      * @param {Object} [locals]     Map of injectables to override
      */
-    _getResource(name, locals) {
+    getResource(name, locals) {
         if (this.hasLocalProvider(name)) {
-            return this.getOrCreate(name, locals);
+            return this.getLocalResource(name, locals);
         }
 
-        const injector = this.$children.find(i => i.hasLocalProvider(name));
-        return injector.getOrCreate(name, locals);
+        const injector = this.$children.find(i => i.has(name));
+        return injector.getResource(name, locals);
     }
 
     /**
@@ -85,10 +86,9 @@ class Injector {
      * @param {Object} [locals]     Map of injectables to override
      * @private
      */
-    getOrCreate(name, locals) {
+    getLocalResource(name, locals) {
         const cache = this.$cache;
         const stack = this.$stack;
-        const providers = this.$providers;
 
         if (cache.has(name) && !this._isInstantiating(name)) {
             return cache.get(name);
@@ -103,7 +103,12 @@ class Injector {
             }
 
             cache.set(name, INSTANTIATING);
-            value = this.instantiate(providers.get(name), locals);
+            value = this.instantiate(name, locals);
+
+            if (value === undefined) {
+                throw new Error('Invalid value returned on constructor of ' + name);
+            }
+
             cache.set(name, value);
         } catch (e) {
             if (this._isInstantiating(name)) {
@@ -145,8 +150,7 @@ class Injector {
      * @return {boolean}
      */
     hasLocalProvider(name) {
-        let v = this.$cache.has(name) || this.$providers.has(name);
-        return v;
+        return this.$cache.has(name) || this.$providers.has(name);
     }
 
     /**
@@ -155,8 +159,7 @@ class Injector {
      * @return {boolean}
      */
     hasChildProvider(name) {
-        var v= Boolean(this.$children.find(i => i.hasLocalProvider(name)));
-        return v;
+        return Boolean(this.$children.find(i => i.has(name)));
     }
 
     /**
@@ -236,12 +239,16 @@ class Injector {
     }
 
     /**
-     * @param {Function} Type
+     * @param {string} name
      * @param {Object} [locals]
      */
-    instantiate(Type, locals) {
-        var Constructor = function() {},
-            instance, returnedValue;
+    instantiate(name, locals) {
+        function Constructor() {}
+
+        let instance, returnedValue;
+        const Type = this.$providers.get(name);
+
+        if (!Type) return;
 
         Constructor.prototype = (is.array(Type) ? Type[Type.length - 1] : Type).prototype;
 
